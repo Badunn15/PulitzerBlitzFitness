@@ -38,11 +38,12 @@ function inferIconKey(name, detail) {
     [/punch|boxing|jab|hook|shadowbox/i, "punch"],
     [/twist|rotation|woodchop|pallof/i, "twist"],
     [/march|knee lift|knee raise|dead bug|bird ?dog/i, "crawl"],
-    [/walk|stroll|pace/i, "walk"],
+    [/leg lift|leg raise|abduction|clamshell/i, "march"],
+    [/carry|walk|stroll|pace/i, "walk"],
     [/stretch|fold|lunge stretch|opener|hip flexor|calf|child.?s pose|cat-cow|cat cow/i, "stretch"],
     [/savasana|rest|cool.?down|quiet|still/i, "rest"],
-    [/seated|chair|wall sit/i, "seated"],
-    [/circle|mobility|ankle/i, "twist"],
+    [/\bseated\b|wall sit/i, "seated"],
+    [/circle|halo|mobility|ankle/i, "twist"],
   ];
   for (const [re, key] of rules) {
     if (re.test(text)) return key;
@@ -56,7 +57,9 @@ function getIconSvg(key) {
 
 /* Parse a step's detail text into a lightweight visual metric: reps/sets or a timer. */
 function parseStepMetric(detail) {
-  const repMatch = detail.match(/(\d+)\s*(?:reps?|times)\b/i) || detail.match(/(\d+)\s*(?:each side|each leg|each arm|each)\b/i);
+  const repMatch =
+    detail.match(/(\d+)\s*(?:reps?|times)\b/i) ||
+    detail.match(/(\d+)\s*(?:steps?)?\s*(?:each side|each leg|each arm|each direction|each)\b/i);
   const setMatch = detail.match(/(\d+)\s*(?:rounds?|sets?)\b/i);
 
   if (repMatch) {

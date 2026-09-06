@@ -20,11 +20,19 @@ lot of fun emojis. Built as a static web app, no backend required.
   small icon pictogram plus an interactive visual —
   a tap-to-track rep/set dot tracker, or a countdown timer ring for
   timed holds and walks — so a workout isn't just a wall of text.
-- **Progress tracking**: streaks, total workouts, and fun milestone badges,
-  all saved locally in the browser (`localStorage`).
+- **Progress tracking**: streaks, total workouts, fun milestone badges, and a
+  28-day calendar heatmap with recent-workout history (📅 button).
 - **Safety-first**: an upfront medical-clearance disclaimer, phase gating, and
   a safety note on every single workout (stop for leaking, pelvic pressure,
   pain, or incision pulling).
+- **Installable (PWA)**: has a manifest + service worker, so it can be added
+  to a phone home screen and works offline once loaded.
+- **Gentle nudge**: a soft "haven't moved today?" banner appears only after a
+  day off (not every single day) — dismissible, never nagging.
+- **A personal touch**: an editable "love notes" list (Settings → 💌) rotates
+  in alongside the built-in affirmations as a sweet surprise on the dashboard.
+- **Kettlebell & resistance band content**: dedicated workouts for a fuller
+  home-gym setup, not just bodyweight/dumbbells.
 
 ## Running it
 
@@ -36,16 +44,30 @@ python3 -m http.server 8000
 # then open http://localhost:8000
 ```
 
-Or just open `index.html` directly in a browser.
+Or just open `index.html` directly in a browser (the service worker/manifest
+need `http(s)://`, so use the local server for the full installable experience).
+
+### Getting a real link (GitHub Pages)
+
+A workflow at `.github/workflows/deploy-pages.yml` deploys the site on every
+push to `main`. One-time setup (can't be done via API, just a couple of clicks):
+in the repo, go to **Settings → Pages → Build and deployment → Source**, and
+select **GitHub Actions**. After that, merging this branch to `main` will
+publish the site automatically and give you a `https://<owner>.github.io/<repo>/`
+link she can open on her phone and "Add to Home Screen."
 
 ## Project structure
 
 ```
-index.html        entry point
-css/style.css      theme + layout
-js/data.js         phases, categories, and all workout content
-js/icons.js        inline SVG pictogram icons + step-metric parsing
-js/app.js          app state, rendering, localStorage persistence
+index.html          entry point
+css/style.css        theme + layout
+js/data.js           phases, categories, and all workout content
+js/icons.js          inline SVG pictogram icons + step-metric parsing
+js/app.js            app state, rendering, localStorage persistence
+manifest.json        PWA manifest (installable, home screen icon)
+sw.js                offline app-shell service worker
+icons/               app icons (SVG source + rasterized PNGs)
+.github/workflows/   GitHub Pages deployment
 ```
 
 ## Notes
