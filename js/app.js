@@ -64,6 +64,36 @@ function isPhaseClearanceGated(phase) {
   return (phase.id === "sunshine" || phase.id === "fullbloom") && !state.cleared;
 }
 
+// The phase whose content should actually be shown/assigned by default.
+// Falls back a phase if the true current (by-week) phase needs clearance she hasn't given yet.
+function contentPhase() {
+  let phase = currentPhase();
+  if (isPhaseClearanceGated(phase)) {
+    const order = PHASES.map((p) => p.id);
+    const idx = order.indexOf(phase.id);
+    if (idx > 0) phase = getPhaseById(order[idx - 1]);
+  }
+  return phase;
+}
+
+function getWeekIndex() {
+  return Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
+}
+
+function getWorkoutForDay(phaseId, dow, weekIndex) {
+  const plan = WEEKLY_PLANS[phaseId];
+  const category = plan ? plan[dow] : null;
+  let candidates = WORKOUTS.filter((w) => w.phase === phaseId && w.category === category);
+  if (candidates.length === 0) candidates = WORKOUTS.filter((w) => w.phase === phaseId);
+  if (candidates.length === 0) return null;
+  return candidates[weekIndex % candidates.length];
+}
+
+function getTodaysWorkout() {
+  const phase = contentPhase();
+  return getWorkoutForDay(phase.id, new Date().getDay(), getWeekIndex());
+}
+
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -204,7 +234,7 @@ function renderOnboarding() {
             <input type="text" id="f-name" placeholder="Mama" value="Mallory" maxlength="30" />
           </label>
           <label>Baby's birth date 👶
-            <input type="date" id="f-date" required />
+            <input type="date" id="f-date" value="2026-07-16" required />
           </label>
           <label>How did you deliver? 🌷
             <select id="f-type">
@@ -285,6 +315,53 @@ function renderDashboard() {
     app.appendChild(nudge);
   }
 
+  const displayPhase = contentPhase();
+  const weekIndex = getWeekIndex();
+  const todaysWorkout = getTodaysWorkout();
+
+  if (todaysWorkout) {
+    const done = isCompletedToday(todaysWorkout.id);
+    const todayCard = el(`
+      <section class="today-card ${done ? "today-card-done" : ""}">
+        <div class="today-card-label">${done ? "✅ Today's Workout — Done!" : "🎯 Today's Workout"}</div>
+        <div class="today-card-body">
+          <div class="today-card-emoji">${todaysWorkout.emoji}</div>
+          <div class="today-card-info">
+            <div class="today-card-title">${escapeHtml(todaysWorkout.title)}</div>
+            <div class="today-card-meta">⏱ ${todaysWorkout.duration} min &middot; ${escapeHtml(todaysWorkout.summary)}</div>
+          </div>
+        </div>
+        <button class="btn-primary today-card-btn">${done ? "Do It Again 🎀" : "Start Workout 🌸"}</button>
+      </section>
+    `);
+    todayCard.querySelector(".today-card-btn").addEventListener("click", () => renderWorkoutModal(todaysWorkout));
+    app.appendChild(todayCard);
+
+    const dowLabels = ["S", "M", "T", "W", "T", "F", "S"];
+    const todayDow = new Date().getDay();
+    const weekStrip = el(`
+      <section class="week-strip">
+        ${dowLabels
+          .map((label, i) => {
+            const w = getWorkoutForDay(displayPhase.id, i, weekIndex);
+            const cat = w ? CATEGORIES.find((c) => c.id === w.category) : null;
+            return `<button class="week-day ${i === todayDow ? "week-day-today" : ""}" data-dow="${i}" title="${w ? escapeAttr(w.title) : ""}">
+              <span class="week-day-label">${label}</span>
+              <span class="week-day-emoji">${cat ? cat.emoji : "🌸"}</span>
+            </button>`;
+          })
+          .join("")}
+      </section>
+    `);
+    weekStrip.querySelectorAll(".week-day").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const w = getWorkoutForDay(displayPhase.id, Number(btn.dataset.dow), weekIndex);
+        if (w) renderWorkoutModal(w);
+      });
+    });
+    app.appendChild(weekStrip);
+  }
+
   const stats = el(`
     <section class="stats-row">
       <div class="stat-card"><div class="stat-num">${computeStreak()}</div><div class="stat-label">🔥 Day Streak</div></div>
@@ -326,7 +403,7 @@ function renderDashboard() {
       ${PHASES.map((p) => {
         const locked = isPhaseLocked(p);
         const gated = !locked && isPhaseClearanceGated(p);
-        const active = (state.activePhaseOverride || phase.id) === p.id;
+        const active = (state.activePhaseOverride || displayPhase.id) === p.id;
         return `<button class="phase-tab ${active ? "phase-tab-active" : ""} ${locked || gated ? "phase-tab-locked" : ""}" data-phase="${p.id}">
           ${p.emoji} ${p.label} ${locked || gated ? "🔒" : ""}
         </button>`;
@@ -352,7 +429,7 @@ function renderDashboard() {
   });
 
   // Workout grid
-  const visiblePhaseId = state.activePhaseOverride || phase.id;
+  const visiblePhaseId = state.activePhaseOverride || displayPhase.id;
   const filtered = WORKOUTS.filter((w) => {
     const matchesPhase = w.phase === visiblePhaseId;
     const matchesCat = state.activeCategory === "all" || w.category === state.activeCategory;

@@ -207,6 +207,50 @@ input, select { font-family: inherit; }
   font-weight: 600;
 }
 
+.today-card {
+  background: #fff;
+  border: 3px solid var(--gold);
+  border-radius: 20px;
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 10px 24px rgba(201, 150, 47, 0.18);
+}
+.today-card-done { border-color: var(--turquoise); }
+.today-card-label {
+  font-weight: 700;
+  color: var(--gold);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+}
+.today-card-done .today-card-label { color: var(--turquoise); }
+.today-card-body { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.today-card-emoji { font-size: 2.2rem; }
+.today-card-title { font-weight: 700; color: var(--navy); font-size: 1.1rem; }
+.today-card-meta { font-size: 0.8rem; color: #6b6478; margin-top: 2px; }
+.today-card-btn { margin: 0; }
+
+.week-strip {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.week-day {
+  background: #fff;
+  border: 2px solid var(--pink-soft);
+  border-radius: 12px;
+  padding: 8px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.week-day-label { font-size: 0.7rem; font-weight: 700; color: var(--navy); }
+.week-day-emoji { font-size: 1.1rem; }
+.week-day-today { border-color: var(--gold); background: #fff8e8; }
+
 .nudge-banner {
   display: flex;
   align-items: center;
