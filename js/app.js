@@ -18,6 +18,13 @@ function loadState() {
     completedLog: [], // { workoutId, dateISO }
     activeCategory: "all",
     activePhaseOverride: null, // let her browse other phases manually
+    soundOn: true,
+    nudgeDismissedDate: null,
+    loveNotes: [
+      "You're doing an amazing job, mama. I love you. 💛",
+      "Proud of you today and every day. 🌺",
+      "Take your time — I've got the baby. Go shine. ✨",
+    ],
   };
 }
 
@@ -66,6 +73,21 @@ function isCompletedToday(workoutId) {
   return state.completedLog.some((l) => l.workoutId === workoutId && l.dateISO === today);
 }
 
+function anyCompletedOn(dateISO) {
+  return state.completedLog.some((l) => l.dateISO === dateISO);
+}
+
+function shouldShowNudge() {
+  if (totalCompleted() === 0) return false; // no history yet — nothing to nudge about
+  if (anyCompletedOn(todayISO())) return false;
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayISO = yesterday.toISOString().slice(0, 10);
+  if (anyCompletedOn(yesterdayISO)) return false; // she was just here yesterday, no need to nudge
+  if (state.nudgeDismissedDate === todayISO()) return false;
+  return true;
+}
+
 function markComplete(workoutId) {
   state.completedLog.push({ workoutId, dateISO: todayISO() });
   saveState();
@@ -89,6 +111,54 @@ function computeStreak() {
 
 function totalCompleted() {
   return state.completedLog.length;
+}
+
+function dailyMessage() {
+  const notes = (state.loveNotes || []).filter(Boolean);
+  const pool = [...AFFIRMATIONS, ...notes];
+  const dayIndex = Math.floor(Date.now() / (24 * 60 * 60 * 1000));
+  const msg = pool[dayIndex % pool.length];
+  const isLoveNote = notes.includes(msg);
+  return { text: msg, isLoveNote };
+}
+
+function playChime() {
+  if (!state.soundOn) return;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    [523.25, 659.25, 783.99].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, now + i * 0.12);
+      gain.gain.linearRampToValueAtTime(0.15, now + i * 0.12 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.12 + 0.35);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(now + i * 0.12);
+      osc.stop(now + i * 0.12 + 0.4);
+    });
+    setTimeout(() => ctx.close(), 900);
+  } catch (e) {
+    /* Web Audio unavailable — fail silently, sound is a nice-to-have */
+  }
+}
+
+function historyGrid(days) {
+  const counts = {};
+  state.completedLog.forEach((l) => {
+    counts[l.dateISO] = (counts[l.dateISO] || 0) + 1;
+  });
+  const cells = [];
+  const cursor = new Date();
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(cursor);
+    d.setDate(d.getDate() - i);
+    const iso = d.toISOString().slice(0, 10);
+    cells.push({ dateISO: iso, dow: d.getDay(), count: counts[iso] || 0, dayNum: d.getDate() });
+  }
+  return cells;
 }
 
 function badgesEarned() {
@@ -131,7 +201,7 @@ function renderOnboarding() {
         <p class="tagline">Postpartum strength, preppy vibes. ✨</p>
         <form id="onboard-form">
           <label>What should we call you? 💌
-            <input type="text" id="f-name" placeholder="Mama" maxlength="30" />
+            <input type="text" id="f-name" placeholder="Mama" value="Mallory" maxlength="30" />
           </label>
           <label>Baby's birth date 👶
             <input type="date" id="f-date" required />
@@ -176,12 +246,15 @@ function renderDashboard() {
   app.innerHTML = "";
   const phase = currentPhase();
   const week = weeksPostpartum();
-  const affirmation = AFFIRMATIONS[week % AFFIRMATIONS.length];
+  const message = dailyMessage();
 
   const header = el(`
     <header class="topbar">
       <div class="logo-small">🌺 Pulitzer Blitz <span class="script">Fitness</span></div>
-      <button id="settings-btn" class="icon-btn" title="Settings">⚙️</button>
+      <div class="topbar-actions">
+        <button id="progress-btn" class="icon-btn" title="Progress">📅</button>
+        <button id="settings-btn" class="icon-btn" title="Settings">⚙️</button>
+      </div>
     </header>
   `);
   app.appendChild(header);
@@ -192,10 +265,25 @@ function renderDashboard() {
       <div class="hero-week">Week ${week} postpartum &middot; <strong>${phase.label}</strong></div>
       <div class="hero-tagline">${phase.tagline}</div>
       ${phase.unlockNote && isPhaseClearanceGated(phase) ? `<div class="hero-note">🔒 ${phase.unlockNote}</div>` : ""}
-      <div class="affirmation">💌 ${affirmation}</div>
+      <div class="affirmation ${message.isLoveNote ? "affirmation-love" : ""}">${message.isLoveNote ? "💌" : "✨"} ${escapeHtml(message.text)}</div>
     </section>
   `);
   app.appendChild(hero);
+
+  if (shouldShowNudge()) {
+    const nudge = el(`
+      <div class="nudge-banner">
+        <span>🌸 Haven't moved today yet, mama? Even 5 minutes counts.</span>
+        <button class="nudge-dismiss" aria-label="Dismiss">✕</button>
+      </div>
+    `);
+    nudge.querySelector(".nudge-dismiss").addEventListener("click", () => {
+      state.nudgeDismissedDate = todayISO();
+      saveState();
+      nudge.remove();
+    });
+    app.appendChild(nudge);
+  }
 
   const stats = el(`
     <section class="stats-row">
@@ -281,6 +369,57 @@ function renderDashboard() {
   }
 
   document.getElementById("settings-btn").addEventListener("click", renderSettingsModal);
+  document.getElementById("progress-btn").addEventListener("click", renderProgressModal);
+}
+
+function renderProgressModal() {
+  const cells = historyGrid(28);
+  const dowLabels = ["S", "M", "T", "W", "T", "F", "S"];
+  const badges = badgesEarned();
+  const recent = [...state.completedLog]
+    .slice(-5)
+    .reverse()
+    .map((l) => {
+      const w = WORKOUTS.find((wk) => wk.id === l.workoutId);
+      return `<div class="recent-row">${w ? w.emoji : "🎀"} <strong>${w ? escapeHtml(w.title) : "Workout"}</strong> <span class="recent-date">${l.dateISO}</span></div>`;
+    })
+    .join("");
+
+  const overlay = el(`
+    <div class="modal-overlay">
+      <div class="modal-card">
+        <button class="modal-close" aria-label="Close">✕</button>
+        <h2>📅 Your Progress</h2>
+        <div class="stats-row">
+          <div class="stat-card"><div class="stat-num">${computeStreak()}</div><div class="stat-label">🔥 Day Streak</div></div>
+          <div class="stat-card"><div class="stat-num">${totalCompleted()}</div><div class="stat-label">🎀 Workouts Done</div></div>
+          <div class="stat-card"><div class="stat-num">${weeksPostpartum()}</div><div class="stat-label">🌴 Weeks Postpartum</div></div>
+        </div>
+        ${badges.length ? `<div class="badge-row">${badges.map((b) => `<span class="badge">${b.emoji} ${b.label}</span>`).join("")}</div>` : ""}
+        <div class="calendar-label">Last 28 days</div>
+        <div class="calendar-dow-row">${dowLabels.map((d) => `<span>${d}</span>`).join("")}</div>
+        <div class="calendar-grid" id="calendar-grid"></div>
+        ${recent ? `<div class="calendar-label">Recent workouts</div><div class="recent-list">${recent}</div>` : ""}
+      </div>
+    </div>
+  `);
+  document.body.appendChild(overlay);
+
+  const grid = overlay.querySelector("#calendar-grid");
+  // pad leading empty cells so the grid aligns under the correct weekday column
+  for (let i = 0; i < cells[0].dow; i++) {
+    grid.appendChild(el(`<div class="cal-cell cal-cell-empty"></div>`));
+  }
+  cells.forEach((c) => {
+    const level = c.count === 0 ? 0 : c.count === 1 ? 1 : 2;
+    const cell = el(`<div class="cal-cell cal-level-${level}" title="${c.dateISO}: ${c.count} workout${c.count === 1 ? "" : "s"}">${c.dayNum}</div>`);
+    grid.appendChild(cell);
+  });
+
+  overlay.querySelector(".modal-close").addEventListener("click", () => overlay.remove());
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) overlay.remove();
+  });
 }
 
 function renderWorkoutCard(workout) {
@@ -327,7 +466,11 @@ function renderWorkoutModal(workout) {
     if (!isCompletedToday(workout.id)) {
       markComplete(workout.id);
       completeBtn.textContent = "✅ Completed Today";
-      render();
+      playChime();
+      setTimeout(() => {
+        overlay.remove();
+        render();
+      }, 700);
     }
   });
 }
@@ -439,6 +582,7 @@ function renderTimerWidget(metric) {
     if (remaining <= 0) {
       clearInterval(timerId);
       timerId = null;
+      playChime();
       if (round < metric.rounds) {
         text.textContent = "Round done! 🎉";
         btn.textContent = "▶ Next Round";
@@ -497,6 +641,13 @@ function renderSettingsModal() {
             <input type="checkbox" id="s-cleared" ${state.cleared ? "checked" : ""} />
             I've been cleared by my provider for exercise
           </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="s-sound" ${state.soundOn ? "checked" : ""} />
+            Play a chime when a timer finishes 🔔
+          </label>
+          <label>Love notes 💌 <span class="label-sub">(one per line — they'll pop up on the dashboard)</span>
+            <textarea id="s-notes" rows="4" placeholder="You've got this, mama! 💛">${escapeHtml((state.loveNotes || []).join("\n"))}</textarea>
+          </label>
           <button type="submit" class="btn-primary">Save 🎀</button>
         </form>
         <button id="reset-data" class="btn-secondary">Reset All Progress</button>
@@ -514,6 +665,12 @@ function renderSettingsModal() {
     state.birthDate = document.getElementById("s-date").value;
     state.birthType = document.getElementById("s-type").value;
     state.cleared = document.getElementById("s-cleared").checked;
+    state.soundOn = document.getElementById("s-sound").checked;
+    state.loveNotes = document
+      .getElementById("s-notes")
+      .value.split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
     state.activePhaseOverride = null;
     saveState();
     overlay.remove();
@@ -540,3 +697,9 @@ function escapeAttr(str) {
 }
 
 render();
+
+if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  });
+}
