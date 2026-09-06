@@ -560,12 +560,12 @@ function updateModalProgress(overlay) {
 }
 
 function renderStepRow(container, step, idx, overlay) {
-  const iconKey = inferIconKey(step.name, step.detail);
+  const poseKey = getPoseKey(step.name, step.detail);
   const metric = parseStepMetric(step.detail);
 
   const row = el(`
     <li class="step-row">
-      <div class="step-icon">${getIconSvg(iconKey)}</div>
+      <div class="step-illustration" title="Reference diagram">${getPoseSvg(poseKey)}</div>
       <div class="step-body">
         <label class="step-check-label">
           <input type="checkbox" class="step-check" />
