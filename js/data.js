@@ -441,6 +441,15 @@ const WORKOUTS = [
   },
 ];
 
+// Weekly plan: maps day-of-week (0=Sun..6=Sat) to a category for each phase,
+// so she gets one assigned workout per day instead of an open browse grid.
+const WEEKLY_PLANS = {
+  bliss: ["stretch", "breathe", "walk", "pelvic", "breathe", "walk", "stretch"],
+  bloom: ["stretch", "pelvic", "walk", "pilates", "pelvic", "walk", "stretch"],
+  sunshine: ["walk", "strength", "pelvic", "cardio", "pilates", "strength", "walk"],
+  fullbloom: ["stretch", "strength", "cardio", "sculpt", "pelvic", "strength", "cardio"],
+};
+
 function getPhaseForWeek(week) {
   return PHASES.find((p) => week >= p.weeks[0] && week < p.weeks[1]) || PHASES[PHASES.length - 1];
 }
